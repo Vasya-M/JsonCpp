@@ -7,7 +7,9 @@
 #include<utility>
 #include <sstream>
 
-#define QUOTES std::string("\"")
+#define QUOTES FUNC_QUOTES()
+std::string FUNC_QUOTES () { return std::string("\""); }
+
 
 std::string OFFSET(int  count){ return std::string (count, ' ');} 
 
@@ -22,26 +24,33 @@ std::string OFFSET(int  count){ return std::string (count, ' ');}
 #define PUTVAL(value) json_str += (value); 
 	
 #define PUTVAL_Q(value) json_str += QUOTES; json_str += (value); json_str += QUOTES;
+	
+void CLEARLAST(int count, std::string& str) 
+{
+	if(str.size()>2)
+		str.resize(str.size()-count);
+}
 
 #define JSON_START \
 	std::string getJson(int _offset = 0){\
 	std::string json_str = "{\n";
 	
-#define CLEARLAST(count) if(json_str.size()>2){json_str.resize(json_str.size()-count);}
-	
 #define JSON_END \
-	CLEARLAST(2)\
+	CLEARLAST(2, json_str);\
 	json_str+="\n" + OFFSET(_offset) + "}\n";\
 	return json_str;}
 	
-#define CHECK_FOR_QUOTES(var) (typeid(var) == typeid(std::string)||typeid(var) == typeid(char)||typeid(var) == typeid(char*))\
-	+	(typeid(var) == typeid(const std::string)||typeid(var) == typeid(const char)||typeid(var) == typeid(const char*));
+template <class T>
+bool CHECK_FOR_QUOTES(T& var)
+{
+	return (typeid(var) == typeid(std::string)||typeid(var) == typeid(char)||typeid(var) == typeid(char*)) + (typeid(var) == typeid(const std::string)||typeid(var) == typeid(const char)||typeid(var) == typeid(const char*));
+}
 
 #define ADDVAR(var) \
 	{\
 	GETNAME(var)\
 	GETVAL(var)\
-	bool var_quotes = CHECK_FOR_QUOTES(var)\
+	bool var_quotes = CHECK_FOR_QUOTES(var);\
 	if(var_quotes){PUTVAL_Q(_ss.str())}else{PUTVAL(_ss.str())}\
 	json_str += ",\n";}
 
@@ -49,20 +58,20 @@ std::string OFFSET(int  count){ return std::string (count, ' ');}
 	{\
 	GETNAME(arr)\
 	json_str += OFFSET(_offset) + "[";\
-	bool var_quotes = CHECK_FOR_QUOTES(arr[0])\
+	bool var_quotes = CHECK_FOR_QUOTES(arr[0]);\
 	for(int i = 0; i < sizeof(arr)/sizeof(arr[0]); i++){\
 	std::stringstream _ss;\
 	_ss << arr[i]; \
 	if(var_quotes){PUTVAL_Q(_ss.str())}else{PUTVAL(_ss.str())}\
 	json_str += ", ";}\
-	CLEARLAST(2)\
+	CLEARLAST(2, json_str);\
 	json_str += "],\n";}
 	
 #define ADDCLASS(obj)\
 	{\
 	GETNAME(obj)\
 	json_str += obj.getJson(_offset + 4 + std::string(#obj).length());\
-	CLEARLAST(1)\
+	CLEARLAST(1, json_str);\
 	json_str += ",\n";}
 	
 //template<template <class> class ContainerT, class ValueT>
@@ -73,7 +82,7 @@ void writeToJsonFromContaiter(ContainerT<ValueT>& arr, std::string& json)
 	json+="[";
 	ContainerT<ValueT>::iterator iter = arr.begin();
 	ValueT tmp;
-	bool var_quotes = CHECK_FOR_QUOTES(tmp)
+	bool var_quotes = CHECK_FOR_QUOTES(tmp);
 	for ( ; iter != arr.end(); ++iter) 
 	{
 		std::stringstream _ss;
