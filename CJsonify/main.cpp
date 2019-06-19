@@ -6,10 +6,17 @@
 #include<string>
 #include<utility>
 #include <sstream>
+#if __cplusplus >= 201103L
+#define NULLp nullptr
+#else
+#define NULLp NULL
+#endif
 
 #define QUOTES std::string("\"")
 
-std::string OFFSET(int  count){ return std::string (count, ' ');} 
+std::string OFFSET(int  count) {
+	return std::string (count, ' ');
+} 
 
 #define GETVAL(val)\
 	std::stringstream _ss;\
@@ -20,28 +27,45 @@ std::string OFFSET(int  count){ return std::string (count, ' ');}
 	json_str += ": ";
 	
 #define PUTVAL(value) json_str += (value); 
-	
 #define PUTVAL_Q(value) json_str += QUOTES; json_str += (value); json_str += QUOTES;
 
 #define JSON_START \
-	std::string getJson(int _offset = 0){\
+	std::string getJson(int _offset = 0){return mainJsonFunc(NULLp, _offset);} \
+	std::string readJson(std::string& json_source) {return mainJsonFunc(&json_source);}\
+	std::string mainJsonFunc(std::string* source, int _offset = 0){\
+	bool output = false; if(source == NULLp){output = true;}\
 	std::string json_str = "{\n";
 	
-#define CLEARLAST(count) if(json_str.size()>2){json_str.resize(json_str.size()-count);}
-	
+//#define CLEARLAST(count) if(json_str.size()>2){json_str.resize(json_str.size()-count);}
+void CLEARLAST(std::string& str, int count) {
+	if(str.size()>2) {
+		str.resize(str.size()-count);
+	}
+}
 #define JSON_END \
-	CLEARLAST(2)\
-	json_str+="\n" + OFFSET(_offset) + "}\n";\
-	return json_str;}
+	if(output){\
+		CLEARLAST(json_str ,2);\
+		json_str+="\n" + OFFSET(_offset) + "}\n";\
+		return json_str;\
+		} else { return std::string(" "); }\
+	}
 	
-#define CHECK_FOR_QUOTES(var) (typeid(var) == typeid(std::string)||typeid(var) == typeid(char)||typeid(var) == typeid(char*))\
-	+	(typeid(var) == typeid(const std::string)||typeid(var) == typeid(const char)||typeid(var) == typeid(const char*));
+	
+template<class T>
+bool CHECK_FOR_QUOTES(T& var) {
+	bool ret = (typeid(var) == typeid(std::string)||typeid(var) == typeid(char)||typeid(var) == typeid(char*));
+	ret += (typeid(var) == typeid(const std::string)||typeid(var) == typeid(const char)||typeid(var) == typeid(const char*));
+	return ret;
+}
+
+/*#define CHECK_FOR_QUOTES(var) (typeid(var) == typeid(std::string)||typeid(var) == typeid(char)||typeid(var) == typeid(char*))\
+	+	(typeid(var) == typeid(const std::string)||typeid(var) == typeid(const char)||typeid(var) == typeid(const char*)); */
 
 #define ADDVAR(var) \
 	{\
 	GETNAME(var)\
 	GETVAL(var)\
-	bool var_quotes = CHECK_FOR_QUOTES(var)\
+	bool var_quotes = CHECK_FOR_QUOTES(var);\
 	if(var_quotes){PUTVAL_Q(_ss.str())}else{PUTVAL(_ss.str())}\
 	json_str += ",\n";}
 
@@ -49,31 +73,31 @@ std::string OFFSET(int  count){ return std::string (count, ' ');}
 	{\
 	GETNAME(arr)\
 	json_str += OFFSET(_offset) + "[";\
-	bool var_quotes = CHECK_FOR_QUOTES(arr[0])\
+	bool var_quotes = CHECK_FOR_QUOTES(arr[0]);\
 	for(int i = 0; i < sizeof(arr)/sizeof(arr[0]); i++){\
 	std::stringstream _ss;\
 	_ss << arr[i]; \
 	if(var_quotes){PUTVAL_Q(_ss.str())}else{PUTVAL(_ss.str())}\
 	json_str += ", ";}\
-	CLEARLAST(2)\
+	CLEARLAST(json_str, 2);\
 	json_str += "],\n";}
 	
 #define ADDCLASS(obj)\
 	{\
 	GETNAME(obj)\
 	json_str += obj.getJson(_offset + 4 + std::string(#obj).length());\
-	CLEARLAST(1)\
+	CLEARLAST(json_str, 1);\
 	json_str += ",\n";}
 	
 //template<template <class> class ContainerT, class ValueT>
-template<typename ValueT, template <typename U, typename =std::allocator<U>> class ContainerT>
-void writeToJsonFromContaiter(ContainerT<ValueT>& arr, std::string& json)
-{
+
+template<typename ValueT, template <typename U, typename = std::allocator<U>> class ContainerT>
+void writeToJsonFromContaiter(ContainerT<ValueT>& arr, std::string& json) {
 	using namespace std;
 	json+="[";
 	ContainerT<ValueT>::iterator iter = arr.begin();
 	ValueT tmp;
-	bool var_quotes = CHECK_FOR_QUOTES(tmp)
+	bool var_quotes = CHECK_FOR_QUOTES(tmp);
 	for ( ; iter != arr.end(); ++iter) 
 	{
 		std::stringstream _ss;
@@ -95,7 +119,7 @@ void writeToJsonFromContaiter(ContainerT<ValueT>& arr, std::string& json)
 }
 #define ADDCONTAINER(arr)\
 	{GETNAME(arr)\
-	writeToJsonFromContaiter(arr,json_str);}\
+	writeToJsonFromContaiter(arr,json_str);}
 	
 struct D
 {
