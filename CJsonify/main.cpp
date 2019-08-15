@@ -2,6 +2,11 @@
 #include<fstream>
 #include<vector>
 
+
+#include<string.h>
+#include<fstream>
+#include<windows.h>
+
 //for json
 #include<string>
 #include<typeinfo>
@@ -115,28 +120,12 @@ bool CHECK_FOR_QUOTES(T& var) {
 	CLEARLAST(json_str, 2);\
 	json_str += "],\n";}
 
-template<class t>
-void addVar__(t var,std::string& json_str, int _offset) {
-	GETVAL(var)
-	
-	bool var_quotes = CHECK_FOR_QUOTES(var);
-	if(var_quotes) {
-		PUTVAL_Q(_ss.str())
-	} else { 
-		PUTVAL(_ss.str())
-	}
-	json_str += ",\n";
-}
-
-
-#define addVar_  void, addVar, (t var,std::string& json_str, int _offset) 
+#define addVar_  bool, addVar, (t var,std::string& json_str, int _offset) 
 declFUNC( (bool valid ,class t), addVar_)
-std::cout <<"-------- received inv value ------ \n";
+	return false;
 endFUNC
 
 partialFUNC( (class t),(true, t), addVar_ ) 
-
-	std::cout <<"-------- received value ------ "<<var<<std::endl;
 	GETVAL(var)
 	bool var_quotes = CHECK_FOR_QUOTES(var);
 	if(var_quotes) {
@@ -145,17 +134,16 @@ partialFUNC( (class t),(true, t), addVar_ )
 		PUTVAL(_ss.str())
 	}
 	json_str += ",\n";
+	return true;
 endFUNC
 
 
-#define addArray_ void, addArray, (t &arr,std::string& json_str, int _offset)
+#define addArray_ bool, addArray, (t &arr,std::string& json_str, int _offset)
 declFUNC( (bool valid ,class t),  addArray_)
-
-std::cout <<"-------- received inv arr value ------ \n";
+	return false;
 endFUNC
 
 partialFUNC( (class t),(true, t), addArray_ ) 
-	std::cout <<"-------- received arr value ------ "<<arr[0]<<std::endl; 
 	json_str += OFFSET(_offset) + "[";	
 	bool var_quotes = CHECK_FOR_QUOTES(arr[0]);
 
@@ -172,32 +160,59 @@ partialFUNC( (class t),(true, t), addArray_ )
 	}
 	CLEARLAST(json_str, 2);
 	json_str += "],\n";
+	return true;
 endFUNC
 
+template<class>
+struct sfinae_true : std::true_type{};
 
-#define addClass_ void, addClass, (t &obj,std::string& json_str,int var_len, int _offset)
+namespace detail{
+	using namespace std;
+  template<class T>
+  static auto test_getJson(int)
+      -> sfinae_true< decltype(declval<T>().getJson())>;
+  template<class>
+  static auto test_getJson(long) -> std::false_type;
+} // detail::
+
+template<class T>
+struct has_getJson : decltype(detail::test_getJson<T>(0)){};
+
+#define addClass_ bool, addClass, (t &obj,std::string& json_str, int _offset, int var_len)
 declFUNC( (bool valid ,class t),  addClass_)
+	return false;
 endFUNC
 
 partialFUNC( (class t),(true, t), addClass_ ) 
 	json_str += obj.getJson(_offset + 4 + var_len);
 	CLEARLAST(json_str, 1);
 	json_str += ",\n";
+	return true;
 endFUNC
-
-
+ 
 enum FIELD_TYPE {CLASS, ARRAY};
 
+#define defaultARGS json_str, _offset
+#define wrapCall2(funcName,typecheck,field,args) if(funcName< is_same<decltype(field), typecheck>::value, decltype(field)>()(field, EXPAND args) == true) break;
+#define wrapCall(funcName,typecheck,field,args) if(funcName<typecheck<decltype(field)>::value, decltype(field)>()(field, EXPAND args) == true) break;
+#define LENGHT(var) std::char_traits<char>::length(var)
+
+
 #define ADDFIELD(field)\
-	if(output) {\
+	while(output) {\
+		using namespace std;\
 		GETNAME(field)\
-			addClass<std::is_class<decltype(field)>::value, decltype(field)>()(field, json_str, std::char_traits<char>::length(#field),_offset);\
-			addArray<std::is_array<decltype(field)>::value, decltype(field)>()(field, json_str, _offset);\
-			addVar<std::is_fundamental<decltype(field)>::value,decltype(field)>()(field, json_str, _offset);\
-			addVar<std::is_pointer<decltype(field)>::value,decltype(field)>()(field, json_str, _offset);\
-			\
+			wrapCall2(addVar,   string, 	   field, (defaultARGS))\
+			wrapCall(addClass, has_getJson,	   field, (defaultARGS,LENGHT(#field)))\
+			wrapCall(addArray, is_array,	   field, (defaultARGS))\
+			wrapCall(addVar,   is_fundamental, field, (defaultARGS))\
+			wrapCall(addVar,   is_pointer,     field, (defaultARGS))\
+			break;\
 	}
 	
+		//	addArray<std::is_array<decltype(field)>::value, decltype(field)>()(field, json_str, _offset);\
+		//	addVar<std::is_fundamental<decltype(field)>::value,decltype(field)>()(field, json_str, _offset);\
+	//		addVar<std::is_pointer<decltype(field)>::value,decltype(field)>()(field, json_str, _offset);
 #define ADDCLASS(obj)\
 	{\
 	GETNAME(obj)\
@@ -279,8 +294,8 @@ struct A
 int ml;
 double hl;
  char  *str;
-int aray[3];
 char caray[4];
+int aray[3];
 std::string saray[4];
 std::string strpp;
 std::vector<int> veci;
@@ -291,8 +306,8 @@ B ba;
 JSON_START
 	ADDFIELD(ml)
 	ADDFIELD(hl)
-	ADDFIELD(str) //------------
-	ADDVAR(strpp)
+	ADDFIELD(str) 
+	ADDFIELD(strpp)
 	ADDFIELD(aray)
 	ADDFIELD(caray)
 	ADDFIELD(saray)
@@ -305,8 +320,6 @@ JSON_END
 };
 
 
-#include<string.h>
-#include<fstream>
 void test()
 {
 	using namespace std;
@@ -318,26 +331,25 @@ void test()
 	obj.aray[0] = 1;
 	obj.aray[1] = 2;
 	obj.aray[2] = 3;
-	obj.saray[0] = "000";
+	obj.saray[0] = "000"; 
 	obj.saray[1] = "123"; 
 	obj.saray[2] = "456";
 	obj.saray[3] = "789";
-	obj.veci = std::vector<int>(3,3);
-	obj.vecc = std::vector<char >(3,'Y');	
-	strcpy(obj.caray, "abdA"); 
+	obj.veci = std::vector<int>(3,3); 
+	obj.vecc = std::vector<char >(3,'Y');	 
+	strcpy(obj.caray, "abAs");  
 	std::cout<<"get json \n\r";
-	ofstream ff("testt.txt");
+	//ofstream ff("testt.txt"); 
 	try
-	{
-	ff << obj.getJson();
-	cout<< obj.getJson();
+	{ 
+	//ff << obj.getJson(); 
+	cout<< obj.getJson(); 
 	}
 	catch (...)
 	{
 		cout<<"cathced exception";
 	}
-	std::cout<<"end test \n";
-	
+	std::cout<<"end test \n"; 
 //	 
 //	 std::cout << std::boolalpha; 
 // cout<<"\n "<< is_pointer<decltype (obj.aray)>::value;
@@ -352,8 +364,6 @@ void test()
 	return;
 }
 
- 
-#include<windows.h>
 int main () 
 {
 	std::ofstream ff("tesstt.txt");
