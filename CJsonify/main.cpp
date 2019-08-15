@@ -74,7 +74,6 @@ std::string OFFSET(int  count) {
 	bool output = false; if(source == NULLp){output = true;}\
 	std::string json_str = "{\n";
 	
-//#define CLEARLAST(count) if(json_str.size()>2){json_str.resize(json_str.size()-count);}
 void CLEARLAST(std::string& str, int count) {
 	if(str.size()>2) {
 		str.resize(str.size()-count);
@@ -96,29 +95,6 @@ bool CHECK_FOR_QUOTES(T& var) {
 	return ret;
 }
 
-/*#define CHECK_FOR_QUOTES(var) (typeid(var) == typeid(std::string)||typeid(var) == typeid(char)||typeid(var) == typeid(char*))\
-	+	(typeid(var) == typeid(const std::string)||typeid(var) == typeid(const char)||typeid(var) == typeid(const char*)); */
-
-#define ADDVAR(var) \
-	{\
-	GETNAME(var)\
-	GETVAL(var)\
-	bool var_quotes = CHECK_FOR_QUOTES(var);\
-	if(var_quotes){PUTVAL_Q(_ss.str())}else{PUTVAL(_ss.str())}\
-	json_str += ",\n";}
-
-#define ADDARR(arr) \
-	{\
-	GETNAME(arr)\
-	json_str += OFFSET(_offset) + "[";\
-	bool var_quotes = CHECK_FOR_QUOTES(arr[0]);\
-	for(int i = 0; i < sizeof(arr)/sizeof(arr[0]); i++){\
-	std::stringstream _ss;\
-	_ss << arr[i]; \
-	if(var_quotes){PUTVAL_Q(_ss.str())}else{PUTVAL(_ss.str())}\
-	json_str += ", ";}\
-	CLEARLAST(json_str, 2);\
-	json_str += "],\n";}
 
 #define addVar_  bool, addVar, (t var,std::string& json_str, int _offset) 
 declFUNC( (bool valid ,class t), addVar_)
@@ -189,37 +165,31 @@ partialFUNC( (class t),(true, t), addClass_ )
 	json_str += ",\n";
 	return true;
 endFUNC
- 
-enum FIELD_TYPE {CLASS, ARRAY};
+  
 
-#define defaultARGS json_str, _offset
-#define wrapCall2(funcName,typecheck,field,args) if(funcName< is_same<decltype(field), typecheck>::value, decltype(field)>()(field, EXPAND args) == true) break;
-#define wrapCall(funcName,typecheck,field,args) if(funcName<typecheck<decltype(field)>::value, decltype(field)>()(field, EXPAND args) == true) break;
+#define defaultARGS json_str, offset
+#define wrapCall2(funcName,typecheck,args) if(funcName<is_same<T, typecheck>::value, T>()(field, EXPAND args) == true) return;
+#define wrapCall(funcName,typecheck,args) if(funcName<typecheck<T>::value, T>()(field, EXPAND args) == true) return;
 #define LENGHT(var) std::char_traits<char>::length(var)
 
+template<class T>
+void WriteIntoJson(T& field, std::string &json_str, int offset, std::string field_name)
+{
+	using namespace std;
+	json_str += OFFSET(offset) + QUOTES + field_name + QUOTES;
+	json_str += ": ";
+	
+	wrapCall2(addVar,  string, 	        (defaultARGS))
+	wrapCall(addClass, has_getJson,	    (defaultARGS, field_name.length()))
+	wrapCall(addArray, is_array,	    (defaultARGS))
+	wrapCall(addVar,   is_fundamental,  (defaultARGS))
+	wrapCall(addVar,   is_pointer,      (defaultARGS))
+}
 
 #define ADDFIELD(field)\
-	while(output) {\
-		using namespace std;\
-		GETNAME(field)\
-			wrapCall2(addVar,   string, 	   field, (defaultARGS))\
-			wrapCall(addClass, has_getJson,	   field, (defaultARGS,LENGHT(#field)))\
-			wrapCall(addArray, is_array,	   field, (defaultARGS))\
-			wrapCall(addVar,   is_fundamental, field, (defaultARGS))\
-			wrapCall(addVar,   is_pointer,     field, (defaultARGS))\
-			break;\
+	if(output) {\
+		WriteIntoJson(field, json_str, _offset, #field);\
 	}
-	
-		//	addArray<std::is_array<decltype(field)>::value, decltype(field)>()(field, json_str, _offset);\
-		//	addVar<std::is_fundamental<decltype(field)>::value,decltype(field)>()(field, json_str, _offset);\
-	//		addVar<std::is_pointer<decltype(field)>::value,decltype(field)>()(field, json_str, _offset);
-#define ADDCLASS(obj)\
-	{\
-	GETNAME(obj)\
-	json_str += obj.getJson(_offset + 4 + std::string(#obj).length());\
-	CLEARLAST(json_str, 1);\
-	json_str += ",\n";}
-	
 
 template<typename ValueT, template <typename U, typename = std::allocator<U>> class ContainerT>
 void writeToJsonFromContaiter(ContainerT<ValueT>& arr, std::string& json) {
@@ -284,7 +254,7 @@ C c;
 JSON_START
 	ADDFIELD(a1)
 	ADDFIELD(b1)
-	ADDCLASS(c)
+	ADDFIELD(c)
 JSON_END
 };
 
@@ -366,6 +336,7 @@ void test()
 
 int main () 
 {
+	using namespace std;
 	std::ofstream ff("tesstt.txt");
 	ff << "sdsds";
 	std::cout<<"start test \n\r";
