@@ -22,7 +22,8 @@
 #endif
 
 
-//*******************************************************************
+//*******************	PARTIAL FUNCTION`S SPECIALIZATION	********************
+
 #define EMPTY()
 #define DEFER(id) id EMPTY()
 #define OBSTRUCT(...) __VA_ARGS__ DEFER(EMPTY)()
@@ -46,13 +47,28 @@
 #define partialFUNC(templateLIst, tempArgs, ...)\
 	partialFUNCTION(templateLIst, tempArgs, __VA_ARGS__)
 #define endFUNC }};
-//*******************************************************************
+
+
+//************************	HELP FUNCTIONS	*******************************************
 
 #define QUOTES std::string("\"")
 
 std::string OFFSET(int  count) {
 	return std::string (count, ' ');
 } 
+
+void CLEARLAST(std::string& str, int count) {
+	if(str.size()>2) {
+		str.resize(str.size()-count);
+	}
+}
+
+template<class T>
+bool CHECK_FOR_QUOTES(T& var) {
+	bool ret = (typeid(var) == typeid(std::string)||typeid(var) == typeid(char)||typeid(var) == typeid(char*));
+	ret += (typeid(var) == typeid(const std::string)||typeid(var) == typeid(const char)||typeid(var) == typeid(const char*));
+	return ret;
+}
 
 #define GETVAL(val)\
 	std::stringstream _ss;\
@@ -62,10 +78,12 @@ std::string OFFSET(int  count) {
 	json_str += OFFSET(_offset) + QUOTES + #var + QUOTES;\
 	json_str += ": ";
 
-#define VARIABLE_NAME(var) #var
 	
 #define PUTVAL(value) json_str += (value); 
 #define PUTVAL_Q(value) json_str += QUOTES; json_str += (value); json_str += QUOTES;
+
+
+//************************	HELP FUNCTIONS	*******************************************
 
 #define JSON_START \
 	std::string getJson(int _offset = 0){return mainJsonFunc(NULLp, _offset);} \
@@ -74,11 +92,7 @@ std::string OFFSET(int  count) {
 	bool output = false; if(source == NULLp){output = true;}\
 	std::string json_str = "{\n";
 	
-void CLEARLAST(std::string& str, int count) {
-	if(str.size()>2) {
-		str.resize(str.size()-count);
-	}
-}
+
 #define JSON_END \
 	if(output){\
 		CLEARLAST(json_str ,2);\
@@ -88,13 +102,7 @@ void CLEARLAST(std::string& str, int count) {
 	}
 	
 	
-template<class T>
-bool CHECK_FOR_QUOTES(T& var) {
-	bool ret = (typeid(var) == typeid(std::string)||typeid(var) == typeid(char)||typeid(var) == typeid(char*));
-	ret += (typeid(var) == typeid(const std::string)||typeid(var) == typeid(const char)||typeid(var) == typeid(const char*));
-	return ret;
-}
-
+//************************	WRITE TYPE FUNCTIONS	*******************************************
 
 #define addVar_  bool, addVar, (t var,std::string& json_str, int _offset) 
 declFUNC( (bool valid ,class t), addVar_)
@@ -112,7 +120,6 @@ partialFUNC( (class t),(true, t), addVar_ )
 	json_str += ",\n";
 	return true;
 endFUNC
-
 
 #define addArray_ bool, addArray, (t &arr,std::string& json_str, int _offset)
 declFUNC( (bool valid ,class t),  addArray_)
@@ -139,21 +146,6 @@ partialFUNC( (class t),(true, t), addArray_ )
 	return true;
 endFUNC
 
-template<class>
-struct sfinae_true : std::true_type{};
-
-namespace detail{
-	using namespace std;
-  template<class T>
-  static auto test_getJson(int)
-      -> sfinae_true< decltype(declval<T>().getJson())>;
-  template<class>
-  static auto test_getJson(long) -> std::false_type;
-} // detail::
-
-template<class T>
-struct has_getJson : decltype(detail::test_getJson<T>(0)){};
-
 #define addClass_ bool, addClass, (t &obj,std::string& json_str, int _offset, int var_len)
 declFUNC( (bool valid ,class t),  addClass_)
 	return false;
@@ -165,31 +157,6 @@ partialFUNC( (class t),(true, t), addClass_ )
 	json_str += ",\n";
 	return true;
 endFUNC
-  
-
-#define defaultARGS json_str, offset
-#define wrapCall2(funcName,typecheck,args) if(funcName<is_same<T, typecheck>::value, T>()(field, EXPAND args) == true) return;
-#define wrapCall(funcName,typecheck,args) if(funcName<typecheck<T>::value, T>()(field, EXPAND args) == true) return;
-#define LENGHT(var) std::char_traits<char>::length(var)
-
-template<class T>
-void WriteIntoJson(T& field, std::string &json_str, int offset, std::string field_name)
-{
-	using namespace std;
-	json_str += OFFSET(offset) + QUOTES + field_name + QUOTES;
-	json_str += ": ";
-	
-	wrapCall2(addVar,  string, 	        (defaultARGS))
-	wrapCall(addClass, has_getJson,	    (defaultARGS, field_name.length()))
-	wrapCall(addArray, is_array,	    (defaultARGS))
-	wrapCall(addVar,   is_fundamental,  (defaultARGS))
-	wrapCall(addVar,   is_pointer,      (defaultARGS))
-}
-
-#define ADDFIELD(field)\
-	if(output) {\
-		WriteIntoJson(field, json_str, _offset, #field);\
-	}
 
 template<typename ValueT, template <typename U, typename = std::allocator<U>> class ContainerT>
 void writeToJsonFromContaiter(ContainerT<ValueT>& arr, std::string& json) {
@@ -217,9 +184,82 @@ void writeToJsonFromContaiter(ContainerT<ValueT>& arr, std::string& json) {
 		json.resize(json.size()-2);
 	json += "],\n";
 }
+
+
+//************************	TYPE CHECK FUNCTIONS	*******************************************
+
+template<class>
+struct sfinae_true : std::true_type{};
+
+namespace detail{
+	using namespace std;
+  template<class T>
+  static auto test_getJson(int)
+      -> sfinae_true< decltype(declval<T>().getJson())>;
+  template<class>
+  static auto test_getJson(long) -> std::false_type;
+} // detail::
+
+template<class T>
+struct has_getJson : decltype(detail::test_getJson<T>(0)){};
+
+
+//************************	MAIN JSON FUNCTIONS 	*******************************************
+
+#define defaultARGS json_str, offset
+#define wrapCall2(funcName,typecheck,args) if(funcName<is_same<T, typecheck>::value, T>()(field, EXPAND args) == true) return;
+#define wrapCall(funcName,typecheck,args) if(funcName<typecheck<T>::value, T>()(field, EXPAND args) == true) return;
+#define LENGHT(var) std::char_traits<char>::length(var)
+
+template<class T>
+void WriteIntoJson(T& field, std::string &json_str, int offset, std::string field_name)
+{
+	using namespace std;
+	json_str += OFFSET(offset) + QUOTES + field_name + QUOTES;
+	json_str += ": ";
+	
+	wrapCall2(addVar,  string, 	        (defaultARGS))
+	wrapCall(addClass, has_getJson,	    (defaultARGS, field_name.length()))
+	wrapCall(addArray, is_array,	    (defaultARGS))
+	wrapCall(addVar,   is_fundamental,  (defaultARGS))
+	wrapCall(addVar,   is_pointer,      (defaultARGS))
+}
+
+#define ADDFIELD(field)\
+	if(output) {\
+		WriteIntoJson(field, json_str, _offset, #field);\
+	}
+
 #define ADDCONTAINER(arr)\
 	{GETNAME(arr)\
 	writeToJsonFromContaiter(arr,json_str);}
+	
+//************************	PUBLUC JSON INTERFACE	*******************************************
+/*
+
+1. In the end of your class declaration add next statement
+	1.1	JSON_START
+	1.2 JSON_END
+	
+2. Between these statements(1.1 and 1.2) add wanted fields
+List of avaible fields type
+	2.1 ADDFIELD(field_name)
+		use this for any C/C++ types, arrays, yours custom class, and std::string
+		if yours another class has CJsonify, it can be used as supported member for ADDFIELD, otherwise it ignoring this field 
+	2.2	ADDCONTAINER(field_name)
+		use it for STL containers (except std::string)
+
+3. template of usage Cjsonify
+class A {
+	int a1;
+	std::vector<int> a2;
+JSON_START
+	ADDFIELD(a1) 
+	ADDCONTAINER(a2)
+JSON_END
+}
+
+*/
 	
 struct D
 {
